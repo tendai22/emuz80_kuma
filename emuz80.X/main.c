@@ -66,7 +66,7 @@
 
 #define _XTAL_FREQ 64000000UL
 
-extern const unsigned char rom[]; // Equivalent to ROM, see end of this file
+extern const unsigned char rom[]; // Equivalent to ROM, see the file "rom.c'
 unsigned char ram[RAM_SIZE]; // Equivalent to RAM
 
 /*
@@ -88,54 +88,6 @@ char getch(void) {
 #define db_setout() (TRISC = 0x00)
 
 #define TOGGLE() (LATA^=(1<<7))
-
-#if 0
-// Never called, logically
-void __interrupt(irq(default),base(8)) Default_ISR(){}
-
-// Called at Z80 MREQ falling edge (PIC18F47Q43 issues WAIT)
-void __interrupt(irq(CLC1),base(8)) CLC_ISR(){
-   static union {
-        unsigned int mem; // 16 bits Address
-        struct {
-            unsigned char l; // Address low 8 bits
-            unsigned char h; // Address high 8 bits
-        };
-    } address;
-    
-    CLC1IF = 0; // Clear interrupt flag
-    
-    address.h = PORTD; // Read address high
-    address.l = PORTB; // Read address low
-    
-    if(!RA5) { // Z80 memory read cycle (RD active)
-        db_setout(); // Set data bus as output
-        if(address.mem < ROM_SIZE){ // ROM area
-            LATC = rom[address.mem]; // Out ROM data
-        } else if((address.mem >= RAM_TOP) && (address.mem < (RAM_TOP + RAM_SIZE))){ // RAM area
-            LATC = ram[address.mem - RAM_TOP]; // RAM data
-        } else if(address.mem == UART_CREG){ // UART control register
-            LATC = PIR9; // U3 flag
-        } else if(address.mem == UART_DREG){ // UART data register
-            LATC = U3RXB; // U3 RX buffer
-        } else { // Out of memory
-            LATC = 0xff; // Invalid data
-        }
-    } else { // Z80 memory write cycle (RD inactive)
-        if((address.mem >= RAM_TOP) && (address.mem < (RAM_TOP + RAM_SIZE))){ // RAM area
-            ram[address.mem - RAM_TOP] = PORTC; // Write into RAM
-        } else if(address.mem == UART_DREG) { // UART data register
-            U3TXB = PORTC; // Write into U3 TX buffer
-        }
-    }
-    dff_reset(); // WAIT inactive
-}
-//  Called at Z80 MREQ rising edge
-void __interrupt(irq(INT0),base(8)) INT0_ISR(){
-    INT0IF = 0; // Clear interrupt flag
-    db_setin(); // Set data bus as input
-}
-#endif
 
 // main routine
 void main(void) {
@@ -236,34 +188,8 @@ void main(void) {
 
     CLCDATA = 0x0; // Clear all CLC outs
     CLCnCON = 0x8c; // Select D-FF, falling edge inturrupt
-#if 0
-    // Vectored Interrupt Controller setting sequence
-    INTCON0bits.IPEN = 1; // Interrupt priority enable
-
-    IVTLOCK = 0x55;
-    IVTLOCK = 0xAA;
-    IVTLOCKbits.IVTLOCKED = 0x00; // Unlock IVT
-
-    IVTBASEU = 0;
-    IVTBASEH = 0;
-    IVTBASEL = 8; // Default VIT base address
-
-    IVTLOCK = 0x55;
-    IVTLOCK = 0xAA;
-    IVTLOCKbits.IVTLOCKED = 0x01; // Lock IVT
-
-    // CLC VI enable
-    CLC1IF = 0; // Clear the CLC interrupt flag
-    CLC1IE = 1; // Enabling CLC1 interrupt
-
-    // INT0 VI enable
-    INT0PPS = 0x1; //RA1->INTERRUPT MANAGER:INT0;
-    INT0EDG = 1; // Rising edge
-    INT0IE = 1;
-#endif
     
 //#define Z80_CLK 2500000UL // Z80 clock frequency
-#define Z80_CLK 2500000UL // Z80 clock frequency
 
     // Z80 clock(RA3) by NCO FDC mode
     RA3PPS = 0x3f; // RA3 asign NCO1
@@ -290,12 +216,9 @@ void main(void) {
     // Z80 start
     // wait for at least four clocks, before starting Z80
     for (int i = 5; i-- > 0; )
-        __asm volatile("nop");
-//    GIE = 1; // Global interrupt enable
+        __asm volatile("nop");  // count 5 is rough estimation.
     LATE1 = 1; // Release reset
-    db_setin();
-
-//    while(1); // All things come to those who wait
+    db_setin(); // Databus Input mode
 
     while(1) {
         static union {

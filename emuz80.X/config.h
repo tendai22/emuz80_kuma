@@ -12,7 +12,7 @@
 extern "C" {
 #endif
 
-//#define Z80_CLK 2500000UL // Z80 clock frequency
+#define Z80_CLK 2500000UL // Z80 clock frequency
 
 #define ROM_SIZE 0x2000 // ROM size 8K bytes
 #define RAM_SIZE 0x1000 // RAM size 4K bytes
