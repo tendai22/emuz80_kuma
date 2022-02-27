@@ -277,10 +277,16 @@ void main(void) {
     NCO1OUT = 1;  // NCO output enable
     NCO1EN = 1;   // NCO enable
 
+//#define TEST_PIN A7
+#if defined(TEST_PIN)
     // RA7 as TEST pin ()
     TRISA7 = 0;     // A7 output
     LATA7 = 0;      // pin value is 0
     RA7PPS = 0;     // PPS as LATA7
+#else
+#undef TOGGLE
+#define TOGGLE()
+#endif //defined(TEST_PIN)
     // Z80 start
     // wait for at least four clocks, before starting Z80
     for (int i = 5; i-- > 0; )
@@ -299,22 +305,39 @@ void main(void) {
                 unsigned char h; // Address high 8 bits
             };
         } address;
+        unsigned short mask;
         // infinit nop
         while(RA4);  // WAIT for /WAIT falling down
         TOGGLE();
         // now wait start
         address.h = PORTD; // Read address high
         address.l = PORTB; // Read address low
-    
         if(!RA5) { // Z80 memory read cycle (RD active)
             db_setout(); // Set data bus as output
-            LATC = 0x01; // inifinite NOP
+            mask = address.mem & 0xf000;
+            if (!(mask & 0xe000)) {
+                LATC = rom[address.mem];
+            } else if (mask == 0x8000) {
+                LATC = ram[address.mem - RAM_TOP];
+            } else if (address.mem == UART_CREG) {
+                LATC = PIR9;    // U3 flag
+            } else if (address.mem == UART_DREG) {
+                LATC = U3RXB;   // U3 RX buffer
+            } else {
+                LATC = 0xff;
+            }
         } else {    // Z80 memory write cycle (RD inactive, WR active)
             while(RE0); // wait for /WR becomes low
             TOGGLE();
+            mask = address.mem & 0xf000;
+            if (mask == 0x8000) {
+                ram[address.mem - RAM_TOP] = PORTC;
+            } else if (address.mem == UART_CREG) {
+                LATC = PIR9;    // U3 flag
+            } else if (address.mem == UART_DREG) {
+                U3TXB = PORTC;   // Write into U3 TX buffer
+            }
             TOGGLE();
-            
-            
         }
         dff_reset(); // WAIT inactive
         while(!RA1); // wait for MREQ negate
