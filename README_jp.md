@@ -68,4 +68,11 @@ $ git clone https://github.com/vintagechips/emuz80.git
 
 まっさらのプロジェクトを`PIC18F47Q43`, `Snap`で作り、空の`main.c`をチェックアウトした`main.c`を入れ替えます。これでビルドしてダウンロード、実行できます。
 
+### TEST Pinを活かす
+
+main関数のすぐ上に
+```
+
+```
+
 

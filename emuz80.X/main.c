@@ -263,7 +263,7 @@ void main(void) {
 #endif
     
 //#define Z80_CLK 2500000UL // Z80 clock frequency
-#define Z80_CLK 2000000UL // Z80 clock frequency
+#define Z80_CLK 2500000UL // Z80 clock frequency
 
     // Z80 clock(RA3) by NCO FDC mode
     RA3PPS = 0x3f; // RA3 asign NCO1
