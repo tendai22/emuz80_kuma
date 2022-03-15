@@ -124,15 +124,10 @@ void main(void) {
     LATE2 = 1; // No interrupt request
     TRISE2 = 0; // Set as output
 
-    // IOREQ input pin
-    ANSELA0 = 0; // Disable analog function
-    WPUA0 = 1; // Week pull up
-    TRISA0 = 1; // Set as input
-
-    // RD(RA5)  input pin
-    ANSELA5 = 0; // Disable analog function
-    WPUA5 = 1; // Week pull up
-    TRISA5 = 1; // Set as intput
+    // RD(RA3)  input pin
+    ANSELA3 = 0; // Disable analog function
+    WPUA3 = 1; // Week pull up
+    TRISA3 = 1; // Set as intput
 
     // UART3 initialize
     U3BRG = 416; // 9600bps @ 64MHz
@@ -152,17 +147,17 @@ void main(void) {
 
     U3ON = 1; // Serial port enable
     
-    // MREQ(RA1) CLC input pin
-    ANSELA1 = 0; // Disable analog function
-    WPUA1 = 1; // Week pull up
-    TRISA1 = 1; // Set as input
-    CLCIN0PPS = 0x1; //RA1->CLC1:CLCIN0;
+    // MREQ(RA5) CLC input pin
+    ANSELA5 = 0; // Disable analog function
+    WPUA5 = 1; // Week pull up
+    TRISA5 = 1; // Set as input
+    CLCIN1PPS = 0x05; //RA5->CLC2:CLCIN1;
 
-    // RFSH(RA2) CLC input pin
-    ANSELA2 = 0; // Disable analog function
-    WPUA2 = 1; // Week pull up
-    TRISA2 = 1; // Set as input
-    CLCIN1PPS = 0x2; //RA2->CLC1:CLCIN1;
+    // RFSH(RD6) CLC input pin
+    ANSELD6 = 0; // Disable analog function
+    WPUD6 = 1; // Week pull up
+    TRISD6 = 1; // Set as input
+    CLCIN3PPS = 0x36; //RD6->CLC1:CLCIN3;
 
     // WAIT(RA4) CLC output pin
     ANSELA4 = 0; // Disable analog function
