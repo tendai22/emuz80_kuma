@@ -152,17 +152,17 @@ void main(void) {
 
     U3ON = 1; // Serial port enable
     
-    // MREQ(RA1) CLC input pin
-    ANSELA1 = 0; // Disable analog function
-    WPUA1 = 1; // Week pull up
-    TRISA1 = 1; // Set as input
-    CLCIN0PPS = 0x1; //RA1->CLC1:CLCIN0;
+    // MREQ(RA5) CLC input pin
+    ANSELA5 = 0; // Disable analog function
+    WPUA5 = 1; // Week pull up
+    TRISA5 = 1; // Set as input
+    CLCIN0PPS = 0x5; //RA5->CLC1:CLCIN0;
 
-    // RFSH(RA2) CLC input pin
-    ANSELA2 = 0; // Disable analog function
-    WPUA2 = 1; // Week pull up
-    TRISA2 = 1; // Set as input
-    CLCIN1PPS = 0x2; //RA2->CLC1:CLCIN1;
+    // RFSH(RD6) CLC input pin
+    ANSELD6 = 0; // Disable analog function
+    WPUD6 = 1; // Week pull up
+    TRISD6 = 1; // Set as input
+    CLCIN2PPS = 0x36; //RD6->CLC1:CLCIN2;
 
     // WAIT(RA4) CLC output pin
     ANSELA4 = 0; // Disable analog function
@@ -175,8 +175,8 @@ void main(void) {
     CLCnPOL = 0x82; // LCG2POL inverted, LCPOL inverted
 
     // CLC data inputs select
-    CLCnSEL0 = 0; // D-FF CLK assign CLCIN0PPS(RA0)
-    CLCnSEL1 = 1; // D-FF D assign CLCIN1PPS(RA2) 
+    CLCnSEL0 = 0; // D1S D-FF CLK assign CLCIN0PPS(RA0)
+    CLCnSEL1 = 2; // D2S D-FF D assign CLCIN2PPS(RD6) 
     CLCnSEL2 = 127; // D-FF S assign none
     CLCnSEL3 = 127; // D-FF R assign none
 
@@ -191,10 +191,10 @@ void main(void) {
     
 //#define Z80_CLK 2500000UL // Z80 clock frequency
 
-    // Z80 clock(RA3) by NCO FDC mode
-    RA3PPS = 0x3f; // RA3 asign NCO1
-    ANSELA3 = 0; // Disable analog function
-    TRISA3 = 0; // PWM output pin
+    // Z80 clock(RD7) by NCO FDC mode
+    RD7PPS = 0x3f; // RD7 asign NCO1
+    ANSELD7 = 0; // Disable analog function
+    TRISD7 = 0; // PWM output pin
     NCO1INCU = (unsigned char)((Z80_CLK*2/61/65536) & 0xff);
     NCO1INCH = (unsigned char)((Z80_CLK*2/61/256) & 0xff);
     NCO1INCL = (unsigned char)((Z80_CLK*2/61) & 0xff);
@@ -203,12 +203,12 @@ void main(void) {
     NCO1OUT = 1;  // NCO output enable
     NCO1EN = 1;   // NCO enable
 
-//#define TEST_PIN A7
+#define TEST_PIN D5
 #if defined(TEST_PIN)
-    // RA7 as TEST pin ()
-    TRISA7 = 0;     // A7 output
-    LATA7 = 0;      // pin value is 0
-    RA7PPS = 0;     // PPS as LATA7
+    // RD5 as TEST pin ()
+    TRISD5 = 0;     // A7 output
+    LATD5 = 0;      // pin value is 0
+    RD5PPS = 0;     // PPS as LATA7
 #else
 #undef TOGGLE
 #define TOGGLE()
@@ -230,42 +230,73 @@ void main(void) {
         } address;
         unsigned short mask;
         // infinit nop
-        while(RA4);  // WAIT for /WAIT falling down
-        TOGGLE();
-        // now wait start
-        address.h = PORTD; // Read address high
-        address.l = PORTB; // Read address low
-        if(!RA5) { // Z80 memory read cycle (RD active)
-            db_setout(); // Set data bus as output
-            mask = address.mem & 0xf000;
-            if (!(mask & 0xe000)) {
+        while(1) {
+            switch(PORTA&0x1f) {
+            case 0: // READ_ROM
+                address.h = PORTD & 0x1f; // Read address high
+                address.l = PORTB; // Read address low
+                db_setout(); // Set data bus as output
                 LATC = rom[address.mem];
-            } else if (mask == 0x8000) {
-                LATC = ram[address.mem - RAM_TOP];
-            } else if (address.mem == UART_CREG) {
-                LATC = PIR9;    // U3 flag
-            } else if (address.mem == UART_DREG) {
-                LATC = U3RXB;   // U3 RX buffer
-            } else {
-                LATC = 0xff;
+                dff_reset(); // WAIT inactive
+                while(!RA1); // wait for MREQ negate
+                db_setin();
+                continue;
+            case 1: case 2: case 3:
+                dff_reset(); // WAIT inactive
+                continue;
+            case 4: // READ_RAM
+                address.h = PORTD & 0xf; // Read address high
+                address.l = PORTB; // Read address low
+                db_setout(); // Set data bus as output
+                LATC = ram[address.mem];
+                dff_reset(); // WAIT inactive
+                while(!RA1); // wait for MREQ negate
+                db_setin();
+                continue;
+            case 5: case 6:
+                dff_reset(); // WAIT inactive
+                continue;
+            case 7: // READ_UART
+                if (PORTB == (UART_CREG & 0xff)) {
+                    LATC = PIR9;    // U3 flag
+                } else if (PORTB == (UART_DREG & 0xff)) {
+                    LATC = U3RXB;   // U3 RX buffer
+                }
+                dff_reset(); // WAIT inactive
+                while(!RA1); // wait for MREQ negate
+                db_setin();
+                continue;
+            case 8: case 9: case 10: case 11:
+                dff_reset(); // WAIT inactive
+                continue;
+            case 12: // WRITE_RAM
+                address.h = PORTD & 0xf; // Read address high
+                address.l = PORTB; // Read address low
+                while(RE0);     // wait for WR Low
+                ram[address.mem] = PORTC;
+                dff_reset(); // WAIT inactive
+                continue;
+            case 13: case 14:
+                dff_reset(); // WAIT inactive
+                continue;
+            case 15: // WRITE_UART
+                while(RE0);     // WAIT for WR Low
+                if (PORTB == (UART_CREG & 0xff)) {
+                    LATC = PIR9;    // U3 flag
+                } else if (PORTB == (UART_DREG & 0xff)) {
+                    U3TXB = PORTC;   // Write into U3 TX buffer
+                }
+                dff_reset(); // WAIT inactive
+                continue;
+            case 16: case 17: case 18: case 19: case 20: case 21:
+            case 22: case 23: case 24: case 25: case 26: case 27:
+            case 28: case 29: case 30: case 31:
+                continue;
+            default:
+                continue;
             }
-        } else {    // Z80 memory write cycle (RD inactive, WR active)
-            while(RE0); // wait for /WR becomes low
-            TOGGLE();
-            mask = address.mem & 0xf000;
-            if (mask == 0x8000) {
-                ram[address.mem - RAM_TOP] = PORTC;
-            } else if (address.mem == UART_CREG) {
-                LATC = PIR9;    // U3 flag
-            } else if (address.mem == UART_DREG) {
-                U3TXB = PORTC;   // Write into U3 TX buffer
-            }
-            TOGGLE();
+            // wait end
         }
-        dff_reset(); // WAIT inactive
-        while(!RA1); // wait for MREQ negate
-        db_setin();
-        TOGGLE();
     }
 }
 
