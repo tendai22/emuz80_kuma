@@ -69,7 +69,7 @@
 extern const unsigned char rom[]; // Equivalent to ROM, see the file "rom.c'
 unsigned char ram[RAM_SIZE]; // Equivalent to RAM
 
-/*
+
 // UART3 Transmit
 void putch(char c) {
     while(!U3TXIF); // Wait or Tx interrupt flag set
@@ -81,13 +81,12 @@ char getch(void) {
     while(!U3RXIF); // Wait for Rx interrupt flag set
     return U3RXB; // Read data
 }
-*/
 
 #define dff_reset() do {G3POL = 1; G3POL = 0;} while(0);
 #define db_setin() (TRISC = 0xff)
 #define db_setout() (TRISC = 0x00)
 
-#define TOGGLE() (LATA^=(1<<7))
+#define TOGGLE() (LATD^=(1<<5))
 
 // main routine
 void main(void) {
@@ -96,8 +95,8 @@ void main(void) {
 
     // Address bus A15-A8 pin
     ANSELD = 0x00; // Disable analog function
-    WPUD = 0xff; // Week pull up
-    TRISD = 0xff; // Set as input
+    WPUD = 0x1f; // Week pull up
+    TRISD = 0x1f; // Set as input
 
     // Address bus A7-A0 pin
     ANSELB = 0x00; // Disable analog function
@@ -119,9 +118,9 @@ void main(void) {
     LATE1 = 0; // Reset
     TRISE1 = 0; // Set as output
 
-    // INT output pin
+    // /CSRAM output pin
     ANSELE2 = 0; // Disable analog function
-    LATE2 = 1; // No interrupt request
+    LATE2 = 1; // Disable SRAM
     TRISE2 = 0; // Set as output
 
     // IOREQ input pin
@@ -129,10 +128,10 @@ void main(void) {
     WPUA0 = 1; // Week pull up
     TRISA0 = 1; // Set as input
 
-    // RD(RA5)  input pin
-    ANSELA5 = 0; // Disable analog function
-    WPUA5 = 1; // Week pull up
-    TRISA5 = 1; // Set as intput
+    // RD(RA3)  input pin
+    ANSELA3 = 0; // Disable analog function
+    WPUA3 = 1; // Week pull up
+    TRISA3 = 1; // Set as intput
 
     // UART3 initialize
     U3BRG = 416; // 9600bps @ 64MHz
@@ -162,7 +161,7 @@ void main(void) {
     ANSELD6 = 0; // Disable analog function
     WPUD6 = 1; // Week pull up
     TRISD6 = 1; // Set as input
-    CLCIN2PPS = 0x36; //RD6->CLC1:CLCIN2;
+    CLCIN2PPS = 0x1E; //RD6->CLC1:CLCIN2;
 
     // WAIT(RA4) CLC output pin
     ANSELA4 = 0; // Disable analog function
@@ -206,9 +205,18 @@ void main(void) {
 #define TEST_PIN D5
 #if defined(TEST_PIN)
     // RD5 as TEST pin ()
-    TRISD5 = 0;     // A7 output
+//    printf("hello, world\r\n");
+    TRISD5 = 0;     // D5 output
     LATD5 = 0;      // pin value is 0
-    RD5PPS = 0;     // PPS as LATA7
+    RD5PPS = 0;     // PPS as LATD5
+#if 0
+    while (1) {
+        TOGGLE();
+        __delay_ms(500);
+        TOGGLE();
+        __delay_ms(500);
+    }
+#endif 
 #else
 #undef TOGGLE
 #define TOGGLE()
@@ -229,6 +237,7 @@ void main(void) {
             };
         } address;
         unsigned short mask;
+        unsigned char c;
         // infinit nop
         while(1) {
             switch(PORTA&0x1f) {
@@ -236,9 +245,9 @@ void main(void) {
                 address.h = PORTD & 0x1f; // Read address high
                 address.l = PORTB; // Read address low
                 db_setout(); // Set data bus as output
-                LATC = rom[address.mem];
+                LATC = c = rom[address.mem];
                 dff_reset(); // WAIT inactive
-                while(!RA1); // wait for MREQ negate
+                while(!RA5); // wait for MREQ negate
                 db_setin();
                 continue;
             case 1: case 2: case 3:
@@ -250,20 +259,24 @@ void main(void) {
                 db_setout(); // Set data bus as output
                 LATC = ram[address.mem];
                 dff_reset(); // WAIT inactive
-                while(!RA1); // wait for MREQ negate
+                while(!RA5); // wait for MREQ negate
                 db_setin();
                 continue;
             case 5: case 6:
                 dff_reset(); // WAIT inactive
                 continue;
             case 7: // READ_UART
+                db_setout();
+                TOGGLE();
                 if (PORTB == (UART_CREG & 0xff)) {
-                    LATC = PIR9;    // U3 flag
+                    LATC = c = PIR9;    // U3 flag
                 } else if (PORTB == (UART_DREG & 0xff)) {
-                    LATC = U3RXB;   // U3 RX buffer
+                    LATC = c = U3RXB;   // U3 RX buffer
                 }
+                TOGGLE();
+                printf("[%04x,%02X]", PORTC, c);
                 dff_reset(); // WAIT inactive
-                while(!RA1); // wait for MREQ negate
+                while(!RA5); // wait for MREQ negate
                 db_setin();
                 continue;
             case 8: case 9: case 10: case 11:
@@ -281,11 +294,15 @@ void main(void) {
                 continue;
             case 15: // WRITE_UART
                 while(RE0);     // WAIT for WR Low
+                TOGGLE();
+                TOGGLE();
+                TOGGLE();
                 if (PORTB == (UART_CREG & 0xff)) {
-                    LATC = PIR9;    // U3 flag
+                    PIR9 = PORTC;    // U3 flag
                 } else if (PORTB == (UART_DREG & 0xff)) {
                     U3TXB = PORTC;   // Write into U3 TX buffer
                 }
+                TOGGLE();
                 dff_reset(); // WAIT inactive
                 continue;
             case 16: case 17: case 18: case 19: case 20: case 21:
