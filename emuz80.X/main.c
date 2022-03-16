@@ -93,10 +93,15 @@ void main(void) {
     // System initialize
     OSCFRQ = 0x08; // 64MHz internal OSC
 
-    // Address bus A15-A8 pin
+    // Address bus A12-A8 pin
     ANSELD = 0x00; // Disable analog function
     WPUD = 0x1f; // Week pull up
     TRISD = 0x1f; // Set as input
+    
+    // Address bus A15-A13 pins
+    ANSELA = 0x00;
+    WPUA = 0x07;
+    TRISA = 0x07;
 
     // Address bus A7-A0 pin
     ANSELB = 0x00; // Disable analog function
@@ -237,11 +242,14 @@ void main(void) {
             };
         } address;
         unsigned short mask;
-        unsigned char c;
+        static unsigned char c;
         // infinit nop
         while(1) {
-            switch(PORTA&0x1f) {
-            case 0: // READ_ROM
+            while (RA4);    // wait for /WAIT == L
+            TOGGLE();
+            c = PORTA & 0x1f;
+            if (c == 0) {
+                // READ_ROM
                 address.h = PORTD & 0x1f; // Read address high
                 address.l = PORTB; // Read address low
                 db_setout(); // Set data bus as output
@@ -249,11 +257,10 @@ void main(void) {
                 dff_reset(); // WAIT inactive
                 while(!RA5); // wait for MREQ negate
                 db_setin();
+                TOGGLE();
                 continue;
-            case 1: case 2: case 3:
-                dff_reset(); // WAIT inactive
-                continue;
-            case 4: // READ_RAM
+            } else if (c == 4) {
+                // READ_RAM
                 address.h = PORTD & 0xf; // Read address high
                 address.l = PORTB; // Read address low
                 db_setout(); // Set data bus as output
@@ -261,58 +268,48 @@ void main(void) {
                 dff_reset(); // WAIT inactive
                 while(!RA5); // wait for MREQ negate
                 db_setin();
-                continue;
-            case 5: case 6:
-                dff_reset(); // WAIT inactive
-                continue;
-            case 7: // READ_UART
-                db_setout();
                 TOGGLE();
+                continue;
+            } else if (c == 7) {
+                // READ UART
+                db_setout();
                 if (PORTB == (UART_CREG & 0xff)) {
                     LATC = c = PIR9;    // U3 flag
                 } else if (PORTB == (UART_DREG & 0xff)) {
                     LATC = c = U3RXB;   // U3 RX buffer
                 }
-                TOGGLE();
-                printf("[%04x,%02X]", PORTC, c);
+                //printf("[%04x,%02X]", PORTC, c);
                 dff_reset(); // WAIT inactive
                 while(!RA5); // wait for MREQ negate
                 db_setin();
+                TOGGLE();
                 continue;
-            case 8: case 9: case 10: case 11:
-                dff_reset(); // WAIT inactive
-                continue;
-            case 12: // WRITE_RAM
+            } else if (c == 12) {
+                // WRITE_RAM
                 address.h = PORTD & 0xf; // Read address high
                 address.l = PORTB; // Read address low
                 while(RE0);     // wait for WR Low
                 ram[address.mem] = PORTC;
                 dff_reset(); // WAIT inactive
+                TOGGLE();
                 continue;
-            case 13: case 14:
-                dff_reset(); // WAIT inactive
-                continue;
-            case 15: // WRITE_UART
+            } else if (c == 15) {
+                // WRITE_UART
                 while(RE0);     // WAIT for WR Low
-                TOGGLE();
-                TOGGLE();
-                TOGGLE();
-                if (PORTB == (UART_CREG & 0xff)) {
+                c = PORTB;
+                if (c == (UART_CREG & 0xff)) {
                     PIR9 = PORTC;    // U3 flag
-                } else if (PORTB == (UART_DREG & 0xff)) {
+                } else if (c == (UART_DREG & 0xff)) {
                     U3TXB = PORTC;   // Write into U3 TX buffer
                 }
-                TOGGLE();
                 dff_reset(); // WAIT inactive
+                TOGGLE();
                 continue;
-            case 16: case 17: case 18: case 19: case 20: case 21:
-            case 22: case 23: case 24: case 25: case 26: case 27:
-            case 28: case 29: case 30: case 31:
-                continue;
-            default:
+            } else {
+                dff_reset(); // WAIT inactive
+                TOGGLE();
                 continue;
             }
-            // wait end
         }
     }
 }
